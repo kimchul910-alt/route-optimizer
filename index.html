@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>배송 경로 분석기</title>
+</head>
+<body>
+
+<h2>배송 경로 권역 분석 (무료)</h2>
+
+<input type="file" id="fileInput" accept=".csv">
+<button onclick="processCSV()">분석하기</button>
+
+<pre id="output"></pre>
+
+<script>
+function processCSV() {
+  const file = document.getElementById('fileInput').files[0];
+  if (!file) return alert("파일 선택하세요");
+
+  const reader = new FileReader();
+
+  reader.onload = function(e) {
+    const text = e.target.result;
+    const lines = text.split("\n");
+
+    let regions = {};
+
+    for (let i = 1; i < lines.length; i++) {
+      let line = lines[i].trim();
+      if (!line) continue;
+
+      let cols = line.split(",");
+      let address = cols[0];
+
+      let parts = address.split(" ");
+
+      let region = parts.slice(0, 3).join(" "); // 시/군/구 기준
+
+      if (!regions[region]) {
+        regions[region] = 0;
+      }
+
+      regions[region]++;
+    }
+
+    let sorted = Object.entries(regions)
+      .sort((a, b) => b[1] - a[1]);
+
+    let result = "=== 추천 이동 순서 ===\n\n";
+
+    sorted.forEach((r, i) => {
+      result += `${i+1}. ${r[0]} (${r[1]}건)\n`;
+    });
+
+    document.getElementById("output").textContent = result;
+  };
+
+  reader.readAsText(file);
+}
+</script>
+
+</body>
+</html>
