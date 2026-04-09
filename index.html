@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>배송 경로 반경 클러스터 분석기</title>
+  <title>배송 권역 고속 분석기</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body {
@@ -23,24 +23,11 @@
     }
     label {
       display: inline-block;
-      margin-right: 10px;
+      margin-right: 12px;
       margin-bottom: 8px;
     }
-    input[type="number"] {
-      width: 100px;
+    select, button, input[type="file"] {
       padding: 6px;
-    }
-    button {
-      padding: 8px 14px;
-      cursor: pointer;
-    }
-    #status {
-      white-space: pre-wrap;
-      background: #fafafa;
-      border: 1px solid #eee;
-      padding: 12px;
-      border-radius: 6px;
-      min-height: 60px;
     }
     #output {
       white-space: pre-wrap;
@@ -57,7 +44,7 @@
   </style>
 </head>
 <body>
-  <h2>배송 경로 반경 기반 자동 클러스터 분석기</h2>
+  <h2>배송 권역 고속 분석기</h2>
   <p class="small">
     CSV 형식: 주소,항목<br>
     예: 전북 전주시 완산구 효자동 123,냉장
@@ -68,16 +55,17 @@
       CSV 파일:
       <input type="file" id="fileInput" accept=".csv" />
     </label>
-    <label>
-      반경(km):
-      <input type="number" id="radiusKm" value="3" min="0.1" step="0.1" />
-    </label>
-    <button onclick="processCSV()">분석하기</button>
-  </div>
 
-  <div class="box">
-    <strong>진행 상태</strong>
-    <div id="status">대기 중</div>
+    <label>
+      묶음 기준:
+      <select id="groupLevel">
+        <option value="3">시/군/구 기준</option>
+        <option value="4" selected>동 기준</option>
+        <option value="5">상세 5토큰 기준</option>
+      </select>
+    </label>
+
+    <button onclick="processCSV()">분석하기</button>
   </div>
 
   <div class="box">
@@ -86,16 +74,8 @@
   </div>
 
   <script>
-    function setStatus(msg) {
-      document.getElementById("status").textContent = msg;
-    }
-
     function setOutput(msg) {
       document.getElementById("output").textContent = msg;
-    }
-
-    function sleep(ms) {
-      return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     function parseCSVLine(line) {
@@ -125,303 +105,137 @@
       return result;
     }
 
-    function haversineKm(lat1, lon1, lat2, lon2) {
-      const toRad = deg => deg * Math.PI / 180;
-      const R = 6371;
-
-      const dLat = toRad(lat2 - lat1);
-      const dLon = toRad(lon2 - lon1);
-
-      const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      return R * c;
+    function normalizeAddress(address) {
+      return address
+        .replace(/\s+/g, " ")
+        .replace(/^\s+|\s+$/g, "");
     }
 
-    function getCacheKey(address) {
-      return "geo_" + address;
+    function getRegionKey(address, level) {
+      const normalized = normalizeAddress(address);
+      const parts = normalized.split(" ").filter(Boolean);
+
+      if (parts.length === 0) return "주소 없음";
+      return parts.slice(0, Math.min(level, parts.length)).join(" ");
     }
 
-    async function geocodeAddress(address) {
-      const cacheKey = getCacheKey(address);
-      const cached = localStorage.getItem(cacheKey);
+    function processCSV() {
+      const file = document.getElementById("fileInput").files[0];
+      const groupLevel = parseInt(document.getElementById("groupLevel").value, 10);
 
-      if (cached) {
-        return JSON.parse(cached);
+      if (!file) {
+        alert("CSV 파일을 선택하세요.");
+        return;
       }
 
-      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`;
+      const reader = new FileReader();
 
-      const response = await fetch(url, {
-        headers: {
-          "Accept": "application/json"
+      reader.onload = function(e) {
+        try {
+          const text = e.target.result;
+          const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
+
+          if (lines.length < 2) {
+            setOutput("데이터가 없습니다.");
+            return;
+          }
+
+          const header = parseCSVLine(lines[0]);
+          const addressIndex = header.findIndex(h => h.trim() === "주소");
+          const itemIndex = header.findIndex(h => h.trim() === "항목");
+
+          if (addressIndex === -1) {
+            setOutput("CSV 첫 줄에 '주소' 컬럼이 필요합니다.");
+            return;
+          }
+
+          const regions = {};
+          let totalCount = 0;
+
+          for (let i = 1; i < lines.length; i++) {
+            const cols = parseCSVLine(lines[i]);
+            const address = normalizeAddress((cols[addressIndex] || "").trim());
+            const item = (itemIndex >= 0 ? (cols[itemIndex] || "").trim() : "") || "일반";
+
+            if (!address) continue;
+
+            const region = getRegionKey(address, groupLevel);
+
+            if (!regions[region]) {
+              regions[region] = {
+                count: 0,
+                items: {},
+                addresses: []
+              };
+            }
+
+            regions[region].count++;
+            regions[region].items[item] = (regions[region].items[item] || 0) + 1;
+            regions[region].addresses.push(address);
+            totalCount++;
+          }
+
+          const sorted = Object.entries(regions).sort((a, b) => b[1].count - a[1].count);
+
+          let result = "";
+          result += "=== 고속 권역 분석 결과 ===\n\n";
+          result += `총 분석 건수: ${totalCount}건\n`;
+          result += `자동 생성 권역 수: ${sorted.length}개\n`;
+          result += `묶음 기준 토큰 수: ${groupLevel}\n\n`;
+
+          result += "=== 추천 이동 순서 ===\n\n";
+
+          sorted.forEach((entry, idx) => {
+            const region = entry[0];
+            const data = entry[1];
+
+            result += `${idx + 1}. ${region} (${data.count}건)\n`;
+
+            Object.entries(data.items).forEach(([item, count]) => {
+              result += `   - ${item}: ${count}건\n`;
+            });
+
+            const preview = data.addresses.slice(0, 3);
+            preview.forEach((addr, i) => {
+              result += `   - 주소${i + 1}: ${addr}\n`;
+            });
+
+            if (data.addresses.length > 3) {
+              result += `   - 외 ${data.addresses.length - 3}건\n`;
+            }
+
+            result += "\n";
+          });
+
+          result += "=== 운영 제안 ===\n\n";
+
+          if (sorted.length > 0) {
+            result += `- ${sorted[0][0]} 권역이 가장 물량이 많으므로 1차 처리 권장\n`;
+          }
+
+          if (sorted.length > 1) {
+            result += `- ${sorted[1][0]} 권역은 후속 처리 또는 2차 회차 권장\n`;
+          }
+
+          if (sorted.length >= 3) {
+            result += "- 권역이 3개 이상이면 오전/오후 또는 차량별 분리 운영 검토 권장\n";
+          }
+
+          if (groupLevel === 3) {
+            result += "- 현재는 넓은 권역 기준이므로 세부 동선 확인이 필요할 수 있음\n";
+          } else if (groupLevel === 4) {
+            result += "- 동 기준 분석으로 실무용 1차 판단에 적합함\n";
+          } else if (groupLevel >= 5) {
+            result += "- 세부 기준으로 묶여 권역 수가 많아질 수 있으므로 과분할 여부 확인 필요\n";
+          }
+
+          setOutput(result);
+        } catch (err) {
+          setOutput("처리 중 오류가 발생했습니다.\n\n" + err.message);
         }
-      });
-
-      if (!response.ok) {
-        throw new Error(`지오코딩 실패: ${address}`);
-      }
-
-      const data = await response.json();
-
-      if (!data || data.length === 0) {
-        return null;
-      }
-
-      const result = {
-        lat: parseFloat(data[0].lat),
-        lon: parseFloat(data[0].lon),
-        display_name: data[0].display_name || address
       };
 
-      localStorage.setItem(cacheKey, JSON.stringify(result));
-      return result;
-    }
-
-    function clusterPoints(points, radiusKm) {
-      const visited = new Array(points.length).fill(false);
-      const clusters = [];
-
-      for (let i = 0; i < points.length; i++) {
-        if (visited[i]) continue;
-
-        const queue = [i];
-        const clusterIndexes = [];
-        visited[i] = true;
-
-        while (queue.length > 0) {
-          const current = queue.shift();
-          clusterIndexes.push(current);
-
-          for (let j = 0; j < points.length; j++) {
-            if (visited[j]) continue;
-
-            const dist = haversineKm(
-              points[current].lat,
-              points[current].lon,
-              points[j].lat,
-              points[j].lon
-            );
-
-            if (dist <= radiusKm) {
-              visited[j] = true;
-              queue.push(j);
-            }
-          }
-        }
-
-        clusters.push(clusterIndexes.map(idx => points[idx]));
-      }
-
-      return clusters;
-    }
-
-    function getDominantAddressParts(addresses) {
-      const tokenCount = {};
-
-      addresses.forEach(addr => {
-        const parts = addr.split(" ").slice(0, 4);
-        const key = parts.join(" ");
-        tokenCount[key] = (tokenCount[key] || 0) + 1;
-      });
-
-      let topKey = "";
-      let topCount = -1;
-
-      for (const [key, count] of Object.entries(tokenCount)) {
-        if (count > topCount) {
-          topKey = key;
-          topCount = count;
-        }
-      }
-
-      return topKey || "권역명 분석 실패";
-    }
-
-    function summarizeCluster(cluster, index) {
-      let latSum = 0;
-      let lonSum = 0;
-      const itemCounts = {};
-      const addresses = [];
-
-      cluster.forEach(row => {
-        latSum += row.lat;
-        lonSum += row.lon;
-        addresses.push(row.address);
-        itemCounts[row.item] = (itemCounts[row.item] || 0) + 1;
-      });
-
-      const centerLat = latSum / cluster.length;
-      const centerLon = lonSum / cluster.length;
-      const regionName = getDominantAddressParts(addresses);
-
-      return {
-        clusterNo: index + 1,
-        count: cluster.length,
-        centerLat,
-        centerLon,
-        regionName,
-        itemCounts,
-        rows: cluster
-      };
-    }
-
-    async function processCSV() {
-      try {
-        const file = document.getElementById("fileInput").files[0];
-        const radiusKm = parseFloat(document.getElementById("radiusKm").value || "3");
-
-        if (!file) {
-          alert("CSV 파일을 선택하세요.");
-          return;
-        }
-
-        if (!radiusKm || radiusKm <= 0) {
-          alert("반경(km)을 올바르게 입력하세요.");
-          return;
-        }
-
-        setStatus("파일 읽는 중...");
-        setOutput("");
-
-        const text = await file.text();
-        const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
-
-        if (lines.length < 2) {
-          setOutput("데이터가 없습니다.");
-          return;
-        }
-
-        const header = parseCSVLine(lines[0]);
-        const addressIndex = header.findIndex(h => h.trim() === "주소");
-        const itemIndex = header.findIndex(h => h.trim() === "항목");
-
-        if (addressIndex === -1) {
-          setOutput("CSV 첫 줄에 '주소' 컬럼이 필요합니다.");
-          return;
-        }
-
-        const rows = [];
-        for (let i = 1; i < lines.length; i++) {
-          const cols = parseCSVLine(lines[i]);
-          const address = (cols[addressIndex] || "").trim();
-          const item = (itemIndex >= 0 ? (cols[itemIndex] || "").trim() : "") || "일반";
-
-          if (!address) continue;
-          rows.push({ address, item });
-        }
-
-        if (rows.length === 0) {
-          setOutput("유효한 주소 데이터가 없습니다.");
-          return;
-        }
-
-        const geocoded = [];
-        const failed = [];
-
-        for (let i = 0; i < rows.length; i++) {
-          const row = rows[i];
-          setStatus(`주소 좌표 변환 중... ${i + 1}/${rows.length}\n${row.address}`);
-
-          try {
-            const geo = await geocodeAddress(row.address);
-
-            if (!geo) {
-              failed.push(row);
-            } else {
-              geocoded.push({
-                ...row,
-                lat: geo.lat,
-                lon: geo.lon,
-                display_name: geo.display_name
-              });
-            }
-          } catch (err) {
-            failed.push(row);
-          }
-
-          await sleep(1100);
-        }
-
-        if (geocoded.length === 0) {
-          setStatus("완료");
-          setOutput("좌표 변환에 성공한 주소가 없습니다.");
-          return;
-        }
-
-        setStatus(`클러스터링 계산 중...\n성공: ${geocoded.length}건 / 실패: ${failed.length}건`);
-
-        const clusters = clusterPoints(geocoded, radiusKm);
-        const summaries = clusters.map((cluster, idx) => summarizeCluster(cluster, idx));
-        summaries.sort((a, b) => b.count - a.count);
-
-        let result = "";
-        result += "=== 반경 기반 권역 분석 결과 ===\n\n";
-        result += `입력 건수: ${rows.length}건\n`;
-        result += `좌표 변환 성공: ${geocoded.length}건\n`;
-        result += `좌표 변환 실패: ${failed.length}건\n`;
-        result += `반경 기준: ${radiusKm} km\n`;
-        result += `자동 생성 권역 수: ${summaries.length}개\n\n`;
-
-        result += "=== 추천 이동 순서 ===\n\n";
-
-        summaries.forEach((summary, idx) => {
-          result += `${idx + 1}. ${summary.regionName} (${summary.count}건)\n`;
-          result += `   - 클러스터 번호: ${summary.clusterNo}\n`;
-          result += `   - 중심좌표: ${summary.centerLat.toFixed(6)}, ${summary.centerLon.toFixed(6)}\n`;
-
-          Object.entries(summary.itemCounts).forEach(([item, count]) => {
-            result += `   - ${item}: ${count}건\n`;
-          });
-
-          const previewRows = summary.rows.slice(0, 5);
-          previewRows.forEach((row, pIdx) => {
-            result += `   - 주소${pIdx + 1}: ${row.address}\n`;
-          });
-
-          if (summary.rows.length > 5) {
-            result += `   - 외 ${summary.rows.length - 5}건\n`;
-          }
-
-          result += "\n";
-        });
-
-        result += "=== 운영 제안 ===\n\n";
-
-        if (summaries.length > 0) {
-          result += `- ${summaries[0].regionName} 권역이 가장 물량이 많아 1차 처리 권장\n`;
-        }
-
-        if (summaries.length > 1) {
-          result += `- ${summaries[1].regionName} 권역은 2차 회차 또는 후속 처리 권장\n`;
-        }
-
-        if (summaries.length >= 3) {
-          result += "- 권역 수가 많으므로 오전/오후 또는 차량별 분리 운영 검토 권장\n";
-        }
-
-        if (failed.length > 0) {
-          result += `- 주소 해석 실패 ${failed.length}건은 표기 방식 점검 필요\n`;
-        }
-
-        result += "\n=== 주소 변환 실패 목록 ===\n\n";
-        if (failed.length === 0) {
-          result += "없음\n";
-        } else {
-          failed.forEach((row, idx) => {
-            result += `${idx + 1}. ${row.address} / ${row.item}\n`;
-          });
-        }
-
-        setStatus("완료");
-        setOutput(result);
-      } catch (error) {
-        setStatus("오류 발생");
-        setOutput("처리 중 오류가 발생했습니다.\n\n" + error.message);
-      }
+      reader.readAsText(file);
     }
   </script>
 </body>
