@@ -8,6 +8,8 @@
 
 <h2>배송 경로 권역 분석 (무료)</h2>
 
+<p>CSV 형식: 주소,항목</p>
+
 <input type="file" id="fileInput" accept=".csv">
 <button onclick="processCSV()">분석하기</button>
 
@@ -32,26 +34,59 @@ function processCSV() {
 
       let cols = line.split(",");
       let address = cols[0];
+      let item = cols[1] || "일반";
 
       let parts = address.split(" ");
 
-      let region = parts.slice(0, 3).join(" "); // 시/군/구 기준
+      if (parts.length < 4) continue;
+
+      let region = parts.slice(0, 4).join(" "); // 동까지
 
       if (!regions[region]) {
-        regions[region] = 0;
+        regions[region] = { count: 0, items: {} };
       }
 
-      regions[region]++;
+      regions[region].count++;
+
+      if (!regions[region].items[item]) {
+        regions[region].items[item] = 0;
+      }
+
+      regions[region].items[item]++;
     }
 
     let sorted = Object.entries(regions)
-      .sort((a, b) => b[1] - a[1]);
+      .sort((a, b) => b[1].count - a[1].count);
 
     let result = "=== 추천 이동 순서 ===\n\n";
 
     sorted.forEach((r, i) => {
-      result += `${i+1}. ${r[0]} (${r[1]}건)\n`;
+      let region = r[0];
+      let data = r[1];
+
+      result += `${i+1}. ${region} (${data.count}건)\n`;
+
+      let items = Object.entries(data.items);
+      items.forEach(it => {
+        result += `   - ${it[0]}: ${it[1]}건\n`;
+      });
+
+      result += "\n";
     });
+
+    result += "=== 운영 제안 ===\n\n";
+
+    if (sorted.length > 0) {
+      result += `- ${sorted[0][0]} 권역을 먼저 처리하는 것이 효율적입니다\n`;
+    }
+
+    if (sorted.length > 1) {
+      result += `- ${sorted[1][0]} 권역은 다음 순서로 이동 권장\n`;
+    }
+
+    if (sorted.length > 2) {
+      result += `- 권역 수가 많으므로 2~3개 단위로 나누어 운영 권장\n`;
+    }
 
     document.getElementById("output").textContent = result;
   };
