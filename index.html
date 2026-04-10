@@ -1,79 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>문제은행 시스템</title>
+</head>
+<body>
+
+<h2>문제은행</h2>
+
+<select id="subject">
+  <option value="기술창업기초">기초</option>
+  <option value="기술창업실무">실무</option>
+</select>
+
+<br><br>
+
+시작 페이지: <input type="number" id="startPage" value="1">
+끝 페이지: <input type="number" id="endPage" value="50">
+문제 수: <input type="number" id="count" value="10">
+
+<br><br>
+
+<button onclick="generateQuiz()">문제 생성</button>
+<button onclick="submitQuiz()">제출</button>
+
+<hr>
+
+<div id="quiz"></div>
+<div id="result"></div>
+
 <script>
-  let currentQuestions = [];
-  let currentQuestionBank = [];
 
-  function getQuestionFileBySubject(subject) {
-    const fileMap = {
-      "기술창업기초": "./questions-basic.json",
-      "기술창업실무": "./questions-practice.json",
-      "기술창업보육실무": "./questions-incubation.json",
-      "기술창업성장실무": "./questions-growth.json",
-      "창업관련법규": "./questions-law.json"
-    };
+let currentQuestions = []
 
-    return fileMap[subject];
-  }
+function getFile(subject) {
+  if(subject === "기술창업기초") return "questions-basic.json"
+  if(subject === "기술창업실무") return "questions-practice.json"
+}
 
-  async function loadQuestionsBySubject(subject) {
-    const filePath = getQuestionFileBySubject(subject);
+async function generateQuiz() {
 
-    if (!filePath) {
-      alert("해당 과목의 문제 파일을 찾을 수 없습니다.");
-      return [];
+  const subject = document.getElementById("subject").value
+  const start = Number(document.getElementById("startPage").value)
+  const end = Number(document.getElementById("endPage").value)
+  const count = Number(document.getElementById("count").value)
+
+  const res = await fetch(getFile(subject))
+  const data = await res.json()
+
+  const filtered = data.filter(q =>
+    q.page >= start && q.page <= end
+  )
+
+  currentQuestions = filtered.sort(() => 0.5 - Math.random()).slice(0, count)
+
+  let html = ""
+
+  currentQuestions.forEach((q, i) => {
+    html += `<div>
+      <p>${i+1}. ${q.question}</p>
+      ${q.choices.map((c, idx) =>
+        `<label><input type="radio" name="q${i}" value="${idx+1}"> ${c}</label><br>`
+      ).join("")}
+    </div><br>`
+  })
+
+  document.getElementById("quiz").innerHTML = html
+  document.getElementById("result").innerHTML = ""
+}
+
+function submitQuiz() {
+
+  let score = 0
+
+  currentQuestions.forEach((q, i) => {
+    const selected = document.querySelector(`input[name="q${i}"]:checked`)
+    if(selected && Number(selected.value) === q.answer){
+      score++
     }
+  })
 
-    try {
-      const response = await fetch(filePath);
-      if (!response.ok) {
-        throw new Error(filePath + " 파일을 불러오지 못했습니다.");
-      }
-      return await response.json();
-    } catch (error) {
-      alert("문제 데이터를 불러오는 중 오류가 발생했습니다.\n" + error.message);
-      return [];
-    }
-  }
+  document.getElementById("result").innerHTML =
+    `점수: ${score} / ${currentQuestions.length}`
+}
 
-  function shuffleArray(array) {
-    const copied = [...array];
-    for (let i = copied.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [copied[i], copied[j]] = [copied[j], copied[i]];
-    }
-    return copied;
-  }
-
-  async function generateQuiz() {
-    const subject = document.getElementById("subject").value;
-    const startPage = Number(document.getElementById("startPage").value);
-    const endPage = Number(document.getElementById("endPage").value);
-    const questionCount = Number(document.getElementById("questionCount").value);
-
-    if (!startPage || !endPage || startPage < 1 || endPage < 1) {
-      alert("페이지를 올바르게 입력하세요.");
-      return;
-    }
-
-    if (startPage > endPage) {
-      alert("시작 페이지는 끝 페이지보다 클 수 없습니다.");
-      return;
-    }
-
-    const allQuestions = await loadQuestionsBySubject(subject);
-
-    const filtered = allQuestions.filter(q =>
-      q.subject === subject &&
-      Number(q.page) >= startPage &&
-      Number(q.page) <= endPage
-    );
-
-    if (filtered.length === 0) {
-      alert("선택한 범위에 해당하는 문제가 없습니다.");
-      return;
-    }
-
-    currentQuestions = shuffleArray(filtered).slice(0, questionCount);
-
-    renderQuiz(currentQuestions);
-  }
 </script>
+
+</body>
+</html>
