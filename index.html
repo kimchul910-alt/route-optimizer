@@ -1,265 +1,40 @@
-<script>
-  let currentQuestions = [];
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>문제은행 테스트</title>
+</head>
+<body>
+  <h1>문제은행 테스트</h1>
+  <button id="loadBtn">JSON 불러오기</button>
+  <pre id="result"></pre>
 
-  function showError(message) {
-    const summary = document.getElementById("summary");
-    const quizContainer = document.getElementById("quizContainer");
-    const scoreBox = document.getElementById("scoreBox");
+  <script>
+    const resultEl = document.getElementById("result");
+    const loadBtn = document.getElementById("loadBtn");
 
-    quizContainer.innerHTML = "";
-    scoreBox.classList.add("hidden");
-
-    summary.classList.remove("hidden");
-    summary.innerHTML = `
-      <div style="color:#b00020; font-weight:bold; margin-bottom:8px;">문제 데이터를 불러오는 중 오류가 발생했습니다.</div>
-      <div style="white-space:pre-line;">${message}</div>
-    `;
-
-    alert("문제 데이터를 불러오는 중 오류가 발생했습니다.\n\n" + message);
-  }
-
-  function getJsonErrorLineInfo(rawText, errorMessage) {
-    const match = errorMessage.match(/position\s+(\d+)/i);
-    if (!match) {
-      return null;
-    }
-
-    const position = Number(match[1]);
-    if (Number.isNaN(position)) {
-      return null;
-    }
-
-    const textBefore = rawText.slice(0, position);
-    const lines = textBefore.split("\n");
-    const line = lines.length;
-    const column = lines[lines.length - 1].length + 1;
-
-    const rawLines = rawText.split("\n");
-    const targetLine = rawLines[line - 1] || "";
-
-    return {
-      position,
-      line,
-      column,
-      targetLine
-    };
-  }
-
-  async function loadQuestions() {
-    try {
-      const response = await fetch("./questions.json?ts=" + Date.now());
-      if (!response.ok) {
-        throw new Error(`questions.json 파일을 불러오지 못했습니다. (HTTP ${response.status})`);
-      }
-
-      const rawText = await response.text();
-
-      if (!rawText.trim()) {
-        throw new Error("questions.json 파일이 비어 있습니다.");
-      }
-
-      let data;
+    loadBtn.addEventListener("click", async () => {
       try {
-        data = JSON.parse(rawText);
-      } catch (parseError) {
-        const lineInfo = getJsonErrorLineInfo(rawText, parseError.message);
+        resultEl.textContent = "불러오는 중...";
+        const response = await fetch("./questions-basic.json?ts=" + Date.now());
 
-        if (lineInfo) {
-          throw new Error(
-            `JSON 형식 오류\n` +
-            `- 원본 오류: ${parseError.message}\n` +
-            `- 추정 위치: ${lineInfo.line}행 ${lineInfo.column}열\n` +
-            `- 해당 줄 내용: ${lineInfo.targetLine}\n\n` +
-            `대부분의 원인:\n` +
-            `1. 배열 ] 뒤에 다른 문자가 추가됨\n` +
-            `2. JSON 배열을 두 번 이어붙임\n` +
-            `3. 객체 사이 쉼표(,) 누락 또는 초과\n` +
-            `4. 마지막 객체 뒤에 불필요한 쉼표 사용`
-          );
+        if (!response.ok) {
+          throw new Error("HTTP 오류: " + response.status);
         }
 
-        throw new Error(`JSON 형식 오류: ${parseError.message}`);
-      }
+        const text = await response.text();
+        const data = JSON.parse(text);
 
-      if (!Array.isArray(data)) {
-        throw new Error("questions.json의 최상위 구조는 반드시 배열([])이어야 합니다.");
-      }
-
-      for (let i = 0; i < data.length; i++) {
-        const q = data[i];
-
-        if (typeof q !== "object" || q === null) {
-          throw new Error(`${i + 1}번째 문제 데이터가 객체 형식이 아닙니다.`);
-        }
-
-        const requiredFields = ["id", "subject", "page", "question", "choices", "answer", "explanation"];
-        for (const field of requiredFields) {
-          if (!(field in q)) {
-            throw new Error(`${i + 1}번째 문제에 필수 항목 '${field}'이 없습니다.`);
-          }
-        }
-
-        if (!Array.isArray(q.choices) || q.choices.length !== 4) {
-          throw new Error(`${i + 1}번째 문제의 choices는 4개 보기 배열이어야 합니다.`);
-        }
-
-        if (![1, 2, 3, 4].includes(q.answer)) {
-          throw new Error(`${i + 1}번째 문제의 answer는 1~4 숫자여야 합니다.`);
-        }
-      }
-
-      return data;
-    } catch (error) {
-      showError(error.message);
-      return [];
-    }
-  }
-
-  function shuffleArray(array) {
-    const copied = [...array];
-    for (let i = copied.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [copied[i], copied[j]] = [copied[j], copied[i]];
-    }
-    return copied;
-  }
-
-  async function generateQuiz() {
-    const subject = document.getElementById("subject").value;
-    const startPage = Number(document.getElementById("startPage").value);
-    const endPage = Number(document.getElementById("endPage").value);
-    const questionCount = Number(document.getElementById("questionCount").value);
-
-    if (!startPage || !endPage || startPage < 1 || endPage < 1) {
-      alert("페이지를 올바르게 입력하세요.");
-      return;
-    }
-
-    if (startPage > endPage) {
-      alert("시작페이지는 끝페이지보다 클 수 없습니다.");
-      return;
-    }
-
-    const allQuestions = await loadQuestions();
-    if (allQuestions.length === 0) {
-      return;
-    }
-
-    const filtered = allQuestions.filter(q =>
-      q.subject === subject &&
-      Number(q.page) >= startPage &&
-      Number(q.page) <= endPage
-    );
-
-    if (filtered.length === 0) {
-      document.getElementById("quizContainer").innerHTML = "";
-      document.getElementById("summary").classList.remove("hidden");
-      document.getElementById("summary").innerHTML = `
-        <strong>검색 결과</strong><br>
-        선택한 범위에 해당하는 문제가 없습니다.<br>
-        과목: ${subject}<br>
-        페이지: ${startPage} ~ ${endPage}
-      `;
-      document.getElementById("scoreBox").classList.add("hidden");
-      return;
-    }
-
-    currentQuestions = shuffleArray(filtered).slice(0, questionCount);
-
-    document.getElementById("summary").classList.remove("hidden");
-    document.getElementById("summary").innerHTML = `
-      <strong>문제 생성 완료</strong><br>
-      과목: ${subject}<br>
-      페이지 범위: ${startPage} ~ ${endPage}<br>
-      검색된 문제 수: ${filtered.length}개<br>
-      실제 출제 문제 수: ${currentQuestions.length}개
-    `;
-
-    renderQuiz(currentQuestions);
-    document.getElementById("scoreBox").classList.add("hidden");
-  }
-
-  function renderQuiz(questions) {
-    const container = document.getElementById("quizContainer");
-    container.innerHTML = "";
-
-    questions.forEach((q, idx) => {
-      const choicesHtml = q.choices.map((choice, choiceIdx) => {
-        const value = choiceIdx + 1;
-        return `
-          <div class="choice">
-            <label>
-              <input type="radio" name="q${idx}" value="${value}">
-              ${value}. ${choice}
-            </label>
-          </div>
-        `;
-      }).join("");
-
-      const card = document.createElement("div");
-      card.className = "question-card";
-      card.innerHTML = `
-        <div class="meta">과목: ${q.subject} | 페이지: ${q.page}</div>
-        <div class="question-title">${idx + 1}. ${q.question}</div>
-        <div>${choicesHtml}</div>
-        <div id="feedback-${idx}" class="explanation hidden"></div>
-      `;
-      container.appendChild(card);
-    });
-  }
-
-  function checkAnswers() {
-    if (currentQuestions.length === 0) {
-      alert("먼저 문제를 생성하세요.");
-      return;
-    }
-
-    let correctCount = 0;
-
-    currentQuestions.forEach((q, idx) => {
-      const selected = document.querySelector(`input[name="q${idx}"]:checked`);
-      const feedbackEl = document.getElementById(`feedback-${idx}`);
-
-      if (!selected) {
-        feedbackEl.classList.remove("hidden");
-        feedbackEl.innerHTML = `
-          <span class="wrong">미응답</span><br>
-          정답: ${q.answer}번<br>
-          해설: ${q.explanation}
-        `;
-        return;
-      }
-
-      const selectedValue = Number(selected.value);
-
-      if (selectedValue === q.answer) {
-        correctCount++;
-        feedbackEl.classList.remove("hidden");
-        feedbackEl.innerHTML = `
-          <span class="correct">정답</span><br>
-          정답: ${q.answer}번<br>
-          해설: ${q.explanation}
-        `;
-      } else {
-        feedbackEl.classList.remove("hidden");
-        feedbackEl.innerHTML = `
-          <span class="wrong">오답</span><br>
-          선택: ${selectedValue}번<br>
-          정답: ${q.answer}번<br>
-          해설: ${q.explanation}
-        `;
+        resultEl.textContent =
+          "성공\n\n" +
+          "문제 수: " + data.length + "\n" +
+          "첫 문제: " + JSON.stringify(data[0], null, 2);
+      } catch (error) {
+        resultEl.textContent = "오류 발생\n\n" + error.message;
+        console.error(error);
       }
     });
-
-    const scoreBox = document.getElementById("scoreBox");
-    scoreBox.classList.remove("hidden");
-    scoreBox.innerHTML = `총점: ${correctCount} / ${currentQuestions.length}`;
-  }
-
-  function resetQuiz() {
-    currentQuestions = [];
-    document.getElementById("quizContainer").innerHTML = "";
-    document.getElementById("summary").classList.add("hidden");
-    document.getElementById("scoreBox").classList.add("hidden");
-  }
-</script>
+  </script>
+</body>
+</html>
