@@ -1,40 +1,713 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>문제은행 테스트</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>창업보육전문매니저 문제은행</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      background: #f5f7fb;
+      color: #222;
+    }
+
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 32px 16px 80px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 42px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #0d2240;
+    }
+
+    .sub-text {
+      margin-bottom: 24px;
+      color: #666;
+      font-size: 16px;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid #d9e0ea;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+      margin-bottom: 20px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px 16px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .form-group label {
+      font-size: 15px;
+      font-weight: 700;
+      color: #1e2b3a;
+    }
+
+    select,
+    input[type="number"] {
+      width: 100%;
+      height: 52px;
+      border: 1px solid #cfd7e3;
+      border-radius: 10px;
+      padding: 0 14px;
+      font-size: 15px;
+      background: #fff;
+      outline: none;
+    }
+
+    select:focus,
+    input[type="number"]:focus {
+      border-color: #275efe;
+      box-shadow: 0 0 0 3px rgba(39, 94, 254, 0.12);
+    }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+    }
+
+    button {
+      height: 46px;
+      padding: 0 18px;
+      border-radius: 10px;
+      border: 1px solid #c7d2e3;
+      background: #fff;
+      color: #17202d;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button.primary {
+      background: #123d97;
+      border-color: #123d97;
+      color: #fff;
+    }
+
+    button.primary:hover {
+      background: #0f337f;
+    }
+
+    button:hover {
+      background: #f3f6fb;
+    }
+
+    .status-bar {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+
+    .status-item {
+      background: #f4f7fc;
+      border: 1px solid #d9e3f1;
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 14px;
+      font-weight: 700;
+      color: #23314a;
+    }
+
+    .summary-box {
+      background: #f8fbff;
+      border: 1px solid #d6e4ff;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 18px;
+      line-height: 1.7;
+      color: #294062;
+    }
+
+    .error-box {
+      background: #fff4f4;
+      border: 1px solid #f1b9b9;
+      color: #9b1c1c;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 18px;
+      white-space: pre-line;
+      line-height: 1.6;
+    }
+
+    .question-card {
+      background: #fff;
+      border: 1px solid #d9e0ea;
+      border-radius: 16px;
+      padding: 22px;
+      margin-bottom: 18px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+    }
+
+    .question-meta {
+      font-size: 13px;
+      color: #66758b;
+      margin-bottom: 10px;
+      font-weight: 700;
+    }
+
+    .question-title {
+      font-size: 19px;
+      line-height: 1.6;
+      font-weight: 800;
+      color: #162235;
+      margin-bottom: 16px;
+    }
+
+    .choice-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .choice-item {
+      display: block;
+      border: 1px solid #d7dfeb;
+      border-radius: 12px;
+      padding: 13px 14px;
+      background: #fbfcfe;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .choice-item:hover {
+      background: #f4f8ff;
+      border-color: #aac3ff;
+    }
+
+    .choice-item input {
+      margin-right: 10px;
+    }
+
+    .feedback {
+      margin-top: 14px;
+      border-radius: 12px;
+      padding: 14px 16px;
+      line-height: 1.7;
+      font-size: 14px;
+      display: none;
+    }
+
+    .feedback.correct {
+      display: block;
+      background: #f1fbf3;
+      border: 1px solid #a7ddb0;
+      color: #156b2a;
+    }
+
+    .feedback.wrong {
+      display: block;
+      background: #fff5f5;
+      border: 1px solid #efb4b4;
+      color: #9d1d1d;
+    }
+
+    .feedback.unanswered {
+      display: block;
+      background: #fffceb;
+      border: 1px solid #ecd98b;
+      color: #7c6200;
+    }
+
+    .result-box {
+      background: #eef5ff;
+      border: 1px solid #c6dafd;
+      color: #123d97;
+      border-radius: 14px;
+      padding: 18px 20px;
+      font-size: 18px;
+      font-weight: 800;
+      margin-top: 20px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .footer-note {
+      margin-top: 14px;
+      font-size: 13px;
+      color: #6c7b92;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 800px) {
+      h1 {
+        font-size: 32px;
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .question-title {
+        font-size: 17px;
+      }
+    }
+  </style>
 </head>
 <body>
-  <h1>문제은행 테스트</h1>
-  <button id="loadBtn">JSON 불러오기</button>
-  <pre id="result"></pre>
+  <div class="wrap">
+    <h1>창업보육전문매니저</h1>
+    <div class="sub-text">과목별 파일을 불러와 시험처럼 문제를 풀 수 있는 문제은행입니다.</div>
+
+    <div class="card">
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="subject">과목</label>
+          <select id="subject">
+            <option value="기술창업기초">기술창업기초</option>
+            <option value="기술창업실무">기술창업실무</option>
+            <option value="기술창업보육실무">기술창업보육실무</option>
+            <option value="기술창업성장실무">기술창업성장실무</option>
+            <option value="창업관련법규">창업관련법규</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="mode">모드</label>
+          <select id="mode">
+            <option value="general">일반 모드</option>
+            <option value="exam">시험 모드</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="startPage">시작 페이지</label>
+          <input type="number" id="startPage" min="1" value="1" />
+        </div>
+
+        <div class="form-group">
+          <label for="endPage">끝 페이지</label>
+          <input type="number" id="endPage" min="1" value="50" />
+        </div>
+
+        <div class="form-group">
+          <label for="questionCount">문제 수</label>
+          <input type="number" id="questionCount" min="1" max="100" value="10" />
+        </div>
+
+        <div class="form-group">
+          <label for="examMinutes">시험 시간(분)</label>
+          <input type="number" id="examMinutes" min="1" max="180" value="20" />
+        </div>
+      </div>
+
+      <div class="button-row">
+        <button class="primary" id="generateBtn">문제 생성</button>
+        <button id="submitBtn">제출 및 채점</button>
+        <button id="resetBtn">초기화</button>
+      </div>
+
+      <div class="footer-note">
+        현재 기본 설정은 <strong>questions-basic.json</strong>을 사용합니다.
+        나중에 과목별 JSON 파일로 분리하면 파일 매핑만 바꾸면 됩니다.
+      </div>
+    </div>
+
+    <div id="errorBox" class="error-box hidden"></div>
+
+    <div id="quizSection" class="hidden">
+      <div class="status-bar">
+        <div class="status-item" id="statusSubject">과목: -</div>
+        <div class="status-item" id="statusRange">범위: -</div>
+        <div class="status-item" id="statusCount">문제 수: -</div>
+        <div class="status-item" id="timerBox">남은 시간: -</div>
+      </div>
+
+      <div id="summaryBox" class="summary-box"></div>
+      <div id="quizContainer"></div>
+      <div id="resultBox" class="result-box hidden"></div>
+    </div>
+  </div>
 
   <script>
-    const resultEl = document.getElementById("result");
-    const loadBtn = document.getElementById("loadBtn");
+    let currentQuestions = [];
+    let currentMode = "general";
+    let timerInterval = null;
+    let remainingSeconds = 0;
+    let isSubmitted = false;
 
-    loadBtn.addEventListener("click", async () => {
+    const generateBtn = document.getElementById("generateBtn");
+    const submitBtn = document.getElementById("submitBtn");
+    const resetBtn = document.getElementById("resetBtn");
+
+    const subjectEl = document.getElementById("subject");
+    const modeEl = document.getElementById("mode");
+    const startPageEl = document.getElementById("startPage");
+    const endPageEl = document.getElementById("endPage");
+    const questionCountEl = document.getElementById("questionCount");
+    const examMinutesEl = document.getElementById("examMinutes");
+
+    const errorBox = document.getElementById("errorBox");
+    const quizSection = document.getElementById("quizSection");
+    const summaryBox = document.getElementById("summaryBox");
+    const quizContainer = document.getElementById("quizContainer");
+    const resultBox = document.getElementById("resultBox");
+
+    const statusSubject = document.getElementById("statusSubject");
+    const statusRange = document.getElementById("statusRange");
+    const statusCount = document.getElementById("statusCount");
+    const timerBox = document.getElementById("timerBox");
+
+    generateBtn.addEventListener("click", generateQuiz);
+    submitBtn.addEventListener("click", submitQuiz);
+    resetBtn.addEventListener("click", resetQuiz);
+
+    function showError(message) {
+      errorBox.classList.remove("hidden");
+      errorBox.textContent = message;
+    }
+
+    function hideError() {
+      errorBox.classList.add("hidden");
+      errorBox.textContent = "";
+    }
+
+    function stopTimer() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+    }
+
+    function formatTime(seconds) {
+      const min = Math.floor(seconds / 60);
+      const sec = seconds % 60;
+      return String(min).padStart(2, "0") + ":" + String(sec).padStart(2, "0");
+    }
+
+    function startTimer(minutes) {
+      stopTimer();
+      remainingSeconds = minutes * 60;
+      timerBox.textContent = "남은 시간: " + formatTime(remainingSeconds);
+
+      timerInterval = setInterval(() => {
+        remainingSeconds -= 1;
+        timerBox.textContent = "남은 시간: " + formatTime(Math.max(remainingSeconds, 0));
+
+        if (remainingSeconds <= 0) {
+          stopTimer();
+          if (!isSubmitted) {
+            submitQuiz(true);
+          }
+        }
+      }, 1000);
+    }
+
+    function shuffleArray(array) {
+      const copied = [...array];
+      for (let i = copied.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copied[i], copied[j]] = [copied[j], copied[i]];
+      }
+      return copied;
+    }
+
+    async function loadQuestionsBySubject(subject) {
+      const subjectFileMap = {
+        "기술창업기초": "./questions-basic.json",
+        "기술창업실무": "./questions-basic.json",
+        "기술창업보육실무": "./questions-basic.json",
+        "기술창업성장실무": "./questions-basic.json",
+        "창업관련법규": "./questions-basic.json"
+      };
+
+      const filePath = subjectFileMap[subject];
+
+      if (!filePath) {
+        throw new Error("선택한 과목에 연결된 JSON 파일이 없습니다.");
+      }
+
+      const response = await fetch(filePath + "?ts=" + Date.now());
+
+      if (!response.ok) {
+        throw new Error("문제 파일을 불러오지 못했습니다. (HTTP " + response.status + ")");
+      }
+
+      const rawText = await response.text();
+
+      if (!rawText.trim()) {
+        throw new Error("문제 파일이 비어 있습니다.");
+      }
+
+      let data;
       try {
-        resultEl.textContent = "불러오는 중...";
-        const response = await fetch("./questions-basic.json?ts=" + Date.now());
+        data = JSON.parse(rawText);
+      } catch (error) {
+        throw new Error("문제 JSON 형식 오류: " + error.message);
+      }
 
-        if (!response.ok) {
-          throw new Error("HTTP 오류: " + response.status);
+      if (!Array.isArray(data)) {
+        throw new Error("문제 파일의 최상위 구조는 배열([])이어야 합니다.");
+      }
+
+      return data;
+    }
+
+    function validateQuestions(data) {
+      const requiredFields = ["id", "subject", "page", "question", "choices", "answer", "explanation"];
+
+      for (let i = 0; i < data.length; i++) {
+        const item = data[i];
+
+        if (typeof item !== "object" || item === null) {
+          throw new Error((i + 1) + "번째 문제 데이터가 객체가 아닙니다.");
         }
 
-        const text = await response.text();
-        const data = JSON.parse(text);
+        for (const field of requiredFields) {
+          if (!(field in item)) {
+            throw new Error((i + 1) + "번째 문제에 '" + field + "' 항목이 없습니다.");
+          }
+        }
 
-        resultEl.textContent =
-          "성공\n\n" +
-          "문제 수: " + data.length + "\n" +
-          "첫 문제: " + JSON.stringify(data[0], null, 2);
-      } catch (error) {
-        resultEl.textContent = "오류 발생\n\n" + error.message;
-        console.error(error);
+        if (!Array.isArray(item.choices) || item.choices.length !== 4) {
+          throw new Error((i + 1) + "번째 문제의 choices는 4개여야 합니다.");
+        }
+
+        if (![1, 2, 3, 4].includes(Number(item.answer))) {
+          throw new Error((i + 1) + "번째 문제의 answer는 1~4 숫자여야 합니다.");
+        }
       }
-    });
+    }
+
+    async function generateQuiz() {
+      hideError();
+      stopTimer();
+      resultBox.classList.add("hidden");
+      resultBox.textContent = "";
+      isSubmitted = false;
+
+      const subject = subjectEl.value;
+      const mode = modeEl.value;
+      const startPage = Number(startPageEl.value);
+      const endPage = Number(endPageEl.value);
+      const questionCount = Number(questionCountEl.value);
+      const examMinutes = Number(examMinutesEl.value);
+
+      if (!startPage || !endPage || startPage < 1 || endPage < 1) {
+        showError("시작 페이지와 끝 페이지를 올바르게 입력하세요.");
+        return;
+      }
+
+      if (startPage > endPage) {
+        showError("시작 페이지는 끝 페이지보다 클 수 없습니다.");
+        return;
+      }
+
+      if (!questionCount || questionCount < 1) {
+        showError("문제 수를 1 이상으로 입력하세요.");
+        return;
+      }
+
+      if (!examMinutes || examMinutes < 1) {
+        showError("시험 시간을 1분 이상으로 입력하세요.");
+        return;
+      }
+
+      try {
+        const allData = await loadQuestionsBySubject(subject);
+        validateQuestions(allData);
+
+        const filtered = allData.filter(item => {
+          return item.subject === subject &&
+            Number(item.page) >= startPage &&
+            Number(item.page) <= endPage;
+        });
+
+        if (filtered.length === 0) {
+          showError("선택한 과목과 페이지 범위에 해당하는 문제가 없습니다.");
+          quizSection.classList.add("hidden");
+          return;
+        }
+
+        currentQuestions = shuffleArray(filtered).slice(0, questionCount);
+        currentMode = mode;
+
+        renderQuiz(currentQuestions);
+
+        statusSubject.textContent = "과목: " + subject;
+        statusRange.textContent = "범위: " + startPage + " ~ " + endPage + " 페이지";
+        statusCount.textContent = "문제 수: " + currentQuestions.length + "개";
+
+        if (mode === "exam") {
+          timerBox.textContent = "남은 시간: " + formatTime(examMinutes * 60);
+          startTimer(examMinutes);
+        } else {
+          timerBox.textContent = "남은 시간: 제한 없음";
+        }
+
+        summaryBox.innerHTML =
+          "<strong>문제 생성 완료</strong><br>" +
+          "과목: " + subject + "<br>" +
+          "출제 범위: " + startPage + " ~ " + endPage + " 페이지<br>" +
+          "검색된 문제 수: " + filtered.length + "개<br>" +
+          "실제 출제 문제 수: " + currentQuestions.length + "개<br>" +
+          "모드: " + (mode === "exam" ? "시험 모드" : "일반 모드");
+
+        quizSection.classList.remove("hidden");
+      } catch (error) {
+        showError(error.message);
+        quizSection.classList.add("hidden");
+      }
+    }
+
+    function renderQuiz(questions) {
+      quizContainer.innerHTML = "";
+
+      questions.forEach((q, index) => {
+        const choicesHtml = q.choices.map((choice, choiceIndex) => {
+          const value = choiceIndex + 1;
+          return `
+            <label class="choice-item">
+              <input type="radio" name="question-${index}" value="${value}">
+              ${value}. ${escapeHtml(choice)}
+            </label>
+          `;
+        }).join("");
+
+        const typeHtml = q.type ? " | 유형: " + escapeHtml(q.type) : "";
+
+        const card = document.createElement("div");
+        card.className = "question-card";
+        card.innerHTML = `
+          <div class="question-meta">
+            문제 ${index + 1} | 페이지: ${q.page}${typeHtml}
+          </div>
+          <div class="question-title">${escapeHtml(q.question)}</div>
+          <div class="choice-list">${choicesHtml}</div>
+          <div id="feedback-${index}" class="feedback"></div>
+        `;
+        quizContainer.appendChild(card);
+      });
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function submitQuiz(isAutoSubmit = false) {
+      if (currentQuestions.length === 0) {
+        showError("먼저 문제를 생성하세요.");
+        return;
+      }
+
+      if (isSubmitted) {
+        return;
+      }
+
+      isSubmitted = true;
+      stopTimer();
+
+      let correctCount = 0;
+      let wrongCount = 0;
+      let unansweredCount = 0;
+
+      currentQuestions.forEach((q, index) => {
+        const selected = document.querySelector(`input[name="question-${index}"]:checked`);
+        const feedback = document.getElementById(`feedback-${index}`);
+        const correctAnswer = Number(q.answer);
+
+        feedback.className = "feedback";
+
+        if (!selected) {
+          unansweredCount += 1;
+          feedback.classList.add("unanswered");
+          feedback.innerHTML =
+            "<strong>미응답</strong><br>" +
+            "정답: " + correctAnswer + "번<br>" +
+            "해설: " + escapeHtml(q.explanation);
+          return;
+        }
+
+        const selectedValue = Number(selected.value);
+
+        if (selectedValue === correctAnswer) {
+          correctCount += 1;
+          feedback.classList.add("correct");
+          feedback.innerHTML =
+            "<strong>정답</strong><br>" +
+            "정답: " + correctAnswer + "번<br>" +
+            "해설: " + escapeHtml(q.explanation);
+        } else {
+          wrongCount += 1;
+          feedback.classList.add("wrong");
+          feedback.innerHTML =
+            "<strong>오답</strong><br>" +
+            "선택: " + selectedValue + "번<br>" +
+            "정답: " + correctAnswer + "번<br>" +
+            "해설: " + escapeHtml(q.explanation);
+        }
+
+        const inputs = document.querySelectorAll(`input[name="question-${index}"]`);
+        inputs.forEach(input => {
+          input.disabled = true;
+        });
+      });
+
+      const score = Math.round((correctCount / currentQuestions.length) * 100);
+
+      resultBox.classList.remove("hidden");
+      resultBox.innerHTML =
+        (isAutoSubmit ? "시간 종료로 자동 제출되었습니다.<br>" : "") +
+        "총점: " + correctCount + " / " + currentQuestions.length +
+        " (" + score + "점)<br>" +
+        "오답: " + wrongCount + "개 | 미응답: " + unansweredCount + "개";
+
+      if (currentMode === "exam") {
+        timerBox.textContent = "남은 시간: 종료";
+      }
+    }
+
+    function resetQuiz() {
+      stopTimer();
+      currentQuestions = [];
+      currentMode = "general";
+      isSubmitted = false;
+
+      hideError();
+
+      quizContainer.innerHTML = "";
+      summaryBox.innerHTML = "";
+      quizSection.classList.add("hidden");
+      resultBox.classList.add("hidden");
+      resultBox.textContent = "";
+
+      statusSubject.textContent = "과목: -";
+      statusRange.textContent = "범위: -";
+      statusCount.textContent = "문제 수: -";
+      timerBox.textContent = "남은 시간: -";
+    }
   </script>
 </body>
 </html>
