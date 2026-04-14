@@ -18,16 +18,23 @@
     }
 
     .wrap {
-      max-width: 1100px;
+      max-width: 1120px;
       margin: 0 auto;
       padding: 32px 16px 80px;
     }
 
     h1 {
       margin: 0 0 10px;
-      font-size: 42px;
+      font-size: 40px;
       font-weight: 800;
       letter-spacing: -0.5px;
+      color: #0d2240;
+    }
+
+    h2 {
+      margin: 0 0 16px;
+      font-size: 24px;
+      font-weight: 800;
       color: #0d2240;
     }
 
@@ -113,6 +120,16 @@
 
     button:hover {
       background: #f3f6fb;
+    }
+
+    .danger {
+      border-color: #d77;
+      color: #9b1c1c;
+      background: #fff8f8;
+    }
+
+    .danger:hover {
+      background: #fff0f0;
     }
 
     .status-bar {
@@ -245,6 +262,50 @@
       margin-top: 20px;
     }
 
+    .note-box {
+      background: #ffffff;
+      border: 1px solid #d9e0ea;
+      border-radius: 14px;
+      padding: 18px;
+      margin-bottom: 14px;
+    }
+
+    .note-header {
+      font-size: 14px;
+      color: #5f6f86;
+      margin-bottom: 8px;
+      font-weight: 700;
+      line-height: 1.6;
+    }
+
+    .note-question {
+      font-size: 17px;
+      font-weight: 800;
+      color: #162235;
+      margin-bottom: 10px;
+      line-height: 1.6;
+    }
+
+    .note-detail {
+      font-size: 14px;
+      line-height: 1.8;
+      color: #32445d;
+    }
+
+    .note-actions {
+      margin-top: 12px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .mini-button {
+      height: 38px;
+      padding: 0 12px;
+      font-size: 13px;
+      border-radius: 8px;
+    }
+
     .hidden {
       display: none !important;
     }
@@ -256,6 +317,15 @@
       line-height: 1.6;
     }
 
+    .empty-note {
+      background: #f9fbff;
+      border: 1px dashed #c7d6ef;
+      border-radius: 12px;
+      padding: 20px;
+      color: #5d7090;
+      line-height: 1.7;
+    }
+
     @media (max-width: 800px) {
       h1 {
         font-size: 32px;
@@ -265,7 +335,8 @@
         grid-template-columns: 1fr;
       }
 
-      .question-title {
+      .question-title,
+      .note-question {
         font-size: 17px;
       }
     }
@@ -274,7 +345,7 @@
 <body>
   <div class="wrap">
     <h1>창업보육전문매니저</h1>
-    <div class="sub-text">과목별 파일을 불러와 시험처럼 문제를 풀 수 있는 문제은행입니다.</div>
+    <div class="sub-text">브라우저별 오답노트 저장 기능이 포함된 문제은행입니다.</div>
 
     <div class="card">
       <div class="form-grid">
@@ -312,11 +383,13 @@
         <button class="primary" id="generateBtn">문제 생성</button>
         <button id="submitBtn">제출 및 채점</button>
         <button id="resetBtn">초기화</button>
+        <button id="showWrongNotesBtn">오답노트 보기</button>
+        <button id="retryWrongBtn">오답만 다시 풀기</button>
       </div>
 
       <div class="footer-note">
         현재 기본 설정은 <strong>questions-basic.json</strong>을 사용합니다.
-        나중에 과목별 JSON 파일로 분리하면 파일 매핑만 바꾸면 됩니다.
+        오답노트는 현재 브라우저에만 저장됩니다.
       </div>
     </div>
 
@@ -334,6 +407,23 @@
       <div id="quizContainer"></div>
       <div id="resultBox" class="result-box hidden"></div>
     </div>
+
+    <div class="card" id="wrongNotesSection">
+      <div class="status-bar">
+        <h2>오답노트</h2>
+        <div class="button-row" style="margin-top: 0;">
+          <button id="refreshWrongNotesBtn" class="mini-button">새로고침</button>
+          <button id="clearSelectedSubjectWrongNotesBtn" class="mini-button danger">선택 과목 오답 삭제</button>
+          <button id="clearAllWrongNotesBtn" class="mini-button danger">전체 오답 삭제</button>
+        </div>
+      </div>
+
+      <div class="summary-box" id="wrongNotesSummary">
+        저장된 오답노트를 불러오는 중입니다.
+      </div>
+
+      <div id="wrongNotesContainer"></div>
+    </div>
   </div>
 
   <script>
@@ -342,10 +432,18 @@
     let timerInterval = null;
     let remainingSeconds = 0;
     let isSubmitted = false;
+    let currentQuizSource = "normal";
+
+    const WRONG_NOTE_STORAGE_KEY = "cbm_wrong_notes_v1";
 
     const generateBtn = document.getElementById("generateBtn");
     const submitBtn = document.getElementById("submitBtn");
     const resetBtn = document.getElementById("resetBtn");
+    const showWrongNotesBtn = document.getElementById("showWrongNotesBtn");
+    const retryWrongBtn = document.getElementById("retryWrongBtn");
+    const refreshWrongNotesBtn = document.getElementById("refreshWrongNotesBtn");
+    const clearSelectedSubjectWrongNotesBtn = document.getElementById("clearSelectedSubjectWrongNotesBtn");
+    const clearAllWrongNotesBtn = document.getElementById("clearAllWrongNotesBtn");
 
     const subjectEl = document.getElementById("subject");
     const modeEl = document.getElementById("mode");
@@ -363,9 +461,23 @@
     const statusPool = document.getElementById("statusPool");
     const timerBox = document.getElementById("timerBox");
 
+    const wrongNotesContainer = document.getElementById("wrongNotesContainer");
+    const wrongNotesSummary = document.getElementById("wrongNotesSummary");
+
     generateBtn.addEventListener("click", generateQuiz);
     submitBtn.addEventListener("click", submitQuiz);
     resetBtn.addEventListener("click", resetQuiz);
+    showWrongNotesBtn.addEventListener("click", renderWrongNotes);
+    retryWrongBtn.addEventListener("click", retryWrongQuestions);
+    refreshWrongNotesBtn.addEventListener("click", renderWrongNotes);
+    clearSelectedSubjectWrongNotesBtn.addEventListener("click", clearSelectedSubjectWrongNotes);
+    clearAllWrongNotesBtn.addEventListener("click", clearAllWrongNotes);
+
+    init();
+
+    function init() {
+      renderWrongNotes();
+    }
 
     function showError(message) {
       errorBox.classList.remove("hidden");
@@ -388,6 +500,20 @@
       const min = Math.floor(seconds / 60);
       const sec = seconds % 60;
       return String(min).padStart(2, "0") + ":" + String(sec).padStart(2, "0");
+    }
+
+    function formatDateTime(value) {
+      if (!value) return "-";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "-";
+
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      const hh = String(date.getHours()).padStart(2, "0");
+      const mm = String(date.getMinutes()).padStart(2, "0");
+
+      return `${y}-${m}-${d} ${hh}:${mm}`;
     }
 
     function startTimer(minutes) {
@@ -415,6 +541,146 @@
         [copied[i], copied[j]] = [copied[j], copied[i]];
       }
       return copied;
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function getWrongNotes() {
+      try {
+        const raw = localStorage.getItem(WRONG_NOTE_STORAGE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (error) {
+        return [];
+      }
+    }
+
+    function saveWrongNotes(notes) {
+      localStorage.setItem(WRONG_NOTE_STORAGE_KEY, JSON.stringify(notes));
+    }
+
+    function saveWrongQuestion(question, selectedAnswer) {
+      const notes = getWrongNotes();
+      const existingIndex = notes.findIndex(item => String(item.id) === String(question.id));
+
+      if (existingIndex >= 0) {
+        notes[existingIndex].wrongCount = Number(notes[existingIndex].wrongCount || 0) + 1;
+        notes[existingIndex].selectedAnswer = selectedAnswer;
+        notes[existingIndex].correctAnswer = Number(question.answer);
+        notes[existingIndex].lastWrongAt = new Date().toISOString();
+        notes[existingIndex].question = question.question;
+        notes[existingIndex].choices = question.choices;
+        notes[existingIndex].explanation = question.explanation;
+        notes[existingIndex].page = question.page;
+        notes[existingIndex].subject = question.subject;
+        notes[existingIndex].type = question.type || "";
+      } else {
+        notes.push({
+          id: question.id,
+          subject: question.subject,
+          page: question.page,
+          type: question.type || "",
+          question: question.question,
+          choices: question.choices,
+          selectedAnswer: selectedAnswer,
+          correctAnswer: Number(question.answer),
+          explanation: question.explanation,
+          wrongCount: 1,
+          lastWrongAt: new Date().toISOString()
+        });
+      }
+
+      saveWrongNotes(notes);
+    }
+
+    function removeWrongQuestionById(questionId) {
+      const notes = getWrongNotes();
+      const filtered = notes.filter(item => String(item.id) !== String(questionId));
+      saveWrongNotes(filtered);
+      renderWrongNotes();
+    }
+
+    function clearAllWrongNotes() {
+      const ok = confirm("저장된 전체 오답노트를 삭제하시겠습니까?");
+      if (!ok) return;
+
+      localStorage.removeItem(WRONG_NOTE_STORAGE_KEY);
+      renderWrongNotes();
+    }
+
+    function clearSelectedSubjectWrongNotes() {
+      const subject = subjectEl.value;
+      const notes = getWrongNotes();
+      const filtered = notes.filter(item => item.subject !== subject);
+
+      if (filtered.length === notes.length) {
+        alert("선택한 과목의 오답노트가 없습니다.");
+        return;
+      }
+
+      const ok = confirm(`'${subject}' 과목의 오답노트를 삭제하시겠습니까?`);
+      if (!ok) return;
+
+      saveWrongNotes(filtered);
+      renderWrongNotes();
+    }
+
+    function renderWrongNotes() {
+      const selectedSubject = subjectEl.value;
+      const allNotes = getWrongNotes();
+      const filteredNotes = allNotes
+        .filter(item => item.subject === selectedSubject)
+        .sort((a, b) => {
+          const timeA = new Date(a.lastWrongAt || 0).getTime();
+          const timeB = new Date(b.lastWrongAt || 0).getTime();
+          return timeB - timeA;
+        });
+
+      wrongNotesSummary.innerHTML =
+        `선택 과목: <strong>${escapeHtml(selectedSubject)}</strong><br>` +
+        `선택 과목 오답 수: <strong>${filteredNotes.length}개</strong><br>` +
+        `전체 저장 오답 수: <strong>${allNotes.length}개</strong>`;
+
+      if (filteredNotes.length === 0) {
+        wrongNotesContainer.innerHTML = `
+          <div class="empty-note">
+            현재 선택한 과목에 저장된 오답노트가 없습니다.<br>
+            문제를 틀리면 자동으로 여기에 저장됩니다.
+          </div>
+        `;
+        return;
+      }
+
+      wrongNotesContainer.innerHTML = filteredNotes.map(note => {
+        const selectedText = note.selectedAnswer ? `${note.selectedAnswer}번` : "-";
+        const correctText = note.correctAnswer ? `${note.correctAnswer}번` : "-";
+
+        return `
+          <div class="note-box">
+            <div class="note-header">
+              과목: ${escapeHtml(note.subject)} | 페이지: ${escapeHtml(note.page)} | 유형: ${escapeHtml(note.type || "-")}<br>
+              누적 오답 횟수: ${escapeHtml(note.wrongCount)}회 | 마지막 오답 시각: ${escapeHtml(formatDateTime(note.lastWrongAt))}
+            </div>
+            <div class="note-question">${escapeHtml(note.question)}</div>
+            <div class="note-detail">
+              내가 고른 답: <strong>${escapeHtml(selectedText)}</strong><br>
+              정답: <strong>${escapeHtml(correctText)}</strong><br>
+              해설: ${escapeHtml(note.explanation)}
+            </div>
+            <div class="note-actions">
+              <button class="mini-button" onclick="removeWrongQuestionById('${escapeHtml(note.id)}')">이 문제 삭제</button>
+            </div>
+          </div>
+        `;
+      }).join("");
     }
 
     async function loadQuestionsBySubject(subject) {
@@ -490,6 +756,7 @@
       resultBox.classList.add("hidden");
       resultBox.textContent = "";
       isSubmitted = false;
+      currentQuizSource = "normal";
 
       const subject = subjectEl.value;
       const mode = modeEl.value;
@@ -549,6 +816,63 @@
       }
     }
 
+    async function retryWrongQuestions() {
+      hideError();
+      stopTimer();
+      resultBox.classList.add("hidden");
+      resultBox.textContent = "";
+      isSubmitted = false;
+      currentQuizSource = "wrong-notes";
+
+      const subject = subjectEl.value;
+      const mode = modeEl.value;
+      const questionCount = Number(questionCountEl.value);
+      const examMinutes = Number(examMinutesEl.value);
+
+      const notes = getWrongNotes().filter(item => item.subject === subject);
+
+      if (notes.length === 0) {
+        showError("선택한 과목의 오답노트가 없습니다.");
+        return;
+      }
+
+      currentQuestions = shuffleArray(notes).slice(0, questionCount).map(item => ({
+        id: item.id,
+        subject: item.subject,
+        page: item.page,
+        type: item.type || "",
+        question: item.question,
+        choices: item.choices,
+        answer: item.correctAnswer,
+        explanation: item.explanation
+      }));
+
+      currentMode = mode;
+
+      renderQuiz(currentQuestions);
+
+      statusSubject.textContent = "과목: " + subject;
+      statusCount.textContent = "문제 수: " + currentQuestions.length + "개";
+      statusPool.textContent = "출제 후보 수: " + notes.length + "개";
+
+      if (mode === "exam") {
+        timerBox.textContent = "남은 시간: " + formatTime(examMinutes * 60);
+        startTimer(examMinutes);
+      } else {
+        timerBox.textContent = "남은 시간: 제한 없음";
+      }
+
+      summaryBox.innerHTML =
+        "<strong>오답노트 재출제 완료</strong><br>" +
+        "과목: " + subject + "<br>" +
+        "저장된 오답 문제 수: " + notes.length + "개<br>" +
+        "실제 출제 문제 수: " + currentQuestions.length + "개<br>" +
+        "모드: " + (mode === "exam" ? "시험 모드" : "일반 모드") + "<br>" +
+        "출제 방식: 오답노트 기반 랜덤 출제";
+
+      quizSection.classList.remove("hidden");
+    }
+
     function renderQuiz(questions) {
       quizContainer.innerHTML = "";
 
@@ -579,15 +903,6 @@
       });
     }
 
-    function escapeHtml(text) {
-      return String(text)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
-
     function submitQuiz(isAutoSubmit = false) {
       if (currentQuestions.length === 0) {
         showError("먼저 문제를 생성하세요.");
@@ -614,31 +929,38 @@
 
         if (!selected) {
           unansweredCount += 1;
+          saveWrongQuestion(q, null);
+
           feedback.classList.add("unanswered");
           feedback.innerHTML =
             "<strong>미응답</strong><br>" +
             "정답: " + correctAnswer + "번<br>" +
             "해설: " + escapeHtml(q.explanation);
-          return;
-        }
-
-        const selectedValue = Number(selected.value);
-
-        if (selectedValue === correctAnswer) {
-          correctCount += 1;
-          feedback.classList.add("correct");
-          feedback.innerHTML =
-            "<strong>정답</strong><br>" +
-            "정답: " + correctAnswer + "번<br>" +
-            "해설: " + escapeHtml(q.explanation);
         } else {
-          wrongCount += 1;
-          feedback.classList.add("wrong");
-          feedback.innerHTML =
-            "<strong>오답</strong><br>" +
-            "선택: " + selectedValue + "번<br>" +
-            "정답: " + correctAnswer + "번<br>" +
-            "해설: " + escapeHtml(q.explanation);
+          const selectedValue = Number(selected.value);
+
+          if (selectedValue === correctAnswer) {
+            correctCount += 1;
+            feedback.classList.add("correct");
+            feedback.innerHTML =
+              "<strong>정답</strong><br>" +
+              "정답: " + correctAnswer + "번<br>" +
+              "해설: " + escapeHtml(q.explanation);
+
+            if (currentQuizSource === "wrong-notes") {
+              removeWrongQuestionById(q.id);
+            }
+          } else {
+            wrongCount += 1;
+            saveWrongQuestion(q, selectedValue);
+
+            feedback.classList.add("wrong");
+            feedback.innerHTML =
+              "<strong>오답</strong><br>" +
+              "선택: " + selectedValue + "번<br>" +
+              "정답: " + correctAnswer + "번<br>" +
+              "해설: " + escapeHtml(q.explanation);
+          }
         }
 
         const inputs = document.querySelectorAll(`input[name="question-${index}"]`);
@@ -659,12 +981,15 @@
       if (currentMode === "exam") {
         timerBox.textContent = "남은 시간: 종료";
       }
+
+      renderWrongNotes();
     }
 
     function resetQuiz() {
       stopTimer();
       currentQuestions = [];
       currentMode = "general";
+      currentQuizSource = "normal";
       isSubmitted = false;
 
       hideError();
