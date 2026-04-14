@@ -42,6 +42,7 @@
       margin-bottom: 24px;
       color: #666;
       font-size: 16px;
+      line-height: 1.6;
     }
 
     .card {
@@ -118,6 +119,16 @@
       background: #0f337f;
     }
 
+    button.exam-real {
+      background: #0b6b3a;
+      border-color: #0b6b3a;
+      color: #fff;
+    }
+
+    button.exam-real:hover {
+      background: #09572f;
+    }
+
     button:hover {
       background: #f3f6fb;
     }
@@ -186,6 +197,7 @@
       color: #66758b;
       margin-bottom: 10px;
       font-weight: 700;
+      line-height: 1.6;
     }
 
     .question-title {
@@ -210,6 +222,7 @@
       background: #fbfcfe;
       cursor: pointer;
       transition: all 0.15s ease;
+      line-height: 1.7;
     }
 
     .choice-item:hover {
@@ -260,6 +273,7 @@
       font-size: 18px;
       font-weight: 800;
       margin-top: 20px;
+      line-height: 1.7;
     }
 
     .note-box {
@@ -314,7 +328,7 @@
       margin-top: 14px;
       font-size: 13px;
       color: #6c7b92;
-      line-height: 1.6;
+      line-height: 1.7;
     }
 
     .empty-note {
@@ -345,7 +359,7 @@
 <body>
   <div class="wrap">
     <h1>창업보육전문매니저</h1>
-    <div class="sub-text">과목별 JSON 파일 연동 + 브라우저별 오답노트 저장 기능이 포함된 문제은행입니다.</div>
+    <div class="sub-text">과목별 JSON 파일 연동, 브라우저별 오답노트 저장, 실전 시험보기가 포함된 문제은행입니다.</div>
 
     <div class="card">
       <div class="form-grid">
@@ -370,17 +384,18 @@
 
         <div class="form-group">
           <label for="questionCount">문제 수</label>
-          <input type="number" id="questionCount" min="1" max="100" value="10" />
+          <input type="number" id="questionCount" min="1" max="200" value="10" />
         </div>
 
         <div class="form-group">
           <label for="examMinutes">시험 시간(분)</label>
-          <input type="number" id="examMinutes" min="1" max="180" value="100" />
+          <input type="number" id="examMinutes" min="1" max="180" value="60" />
         </div>
       </div>
 
       <div class="button-row">
         <button class="primary" id="generateBtn">문제 생성</button>
+        <button class="exam-real" id="realExamBtn">시험보기</button>
         <button id="submitBtn">제출 및 채점</button>
         <button id="resetBtn">초기화</button>
         <button id="showWrongNotesBtn">오답노트 보기</button>
@@ -388,8 +403,9 @@
       </div>
 
       <div class="footer-note">
-        일반 모드는 선택한 과목 파일에서 랜덤 출제합니다.<br>
-        시험 모드는 각 과목 파일에서 문제를 추출해 총 100문제를 생성합니다.
+        일반 모드: 선택 과목 파일에서 랜덤 출제<br>
+        시험 모드: 선택 과목 기준으로 문제 수/시간 설정 후 랜덤 출제<br>
+        시험보기: 전과목 실전 시험, 100분 고정, 과목별 25문제씩, 총 125문제
       </div>
     </div>
 
@@ -434,7 +450,7 @@
     let isSubmitted = false;
     let currentQuizSource = "normal";
 
-    const WRONG_NOTE_STORAGE_KEY = "cbm_wrong_notes_v2";
+    const WRONG_NOTE_STORAGE_KEY = "cbm_wrong_notes_v4";
 
     const SUBJECT_FILE_MAP = {
       "기술창업기초": "./questions-basic.json",
@@ -444,15 +460,18 @@
       "창업관련법규": "./questions-law.json"
     };
 
-    const EXAM_DISTRIBUTION = {
-      "기술창업기초": 20,
-      "기술창업실무": 20,
-      "기술창업보육실무": 20,
-      "기술창업성장실무": 20,
-      "창업관련법규": 20
+    const REAL_EXAM_DISTRIBUTION = {
+      "기술창업기초": 25,
+      "기술창업실무": 25,
+      "기술창업보육실무": 25,
+      "기술창업성장실무": 25,
+      "창업관련법규": 25
     };
 
+    const REAL_EXAM_TOTAL_TIME = 100;
+
     const generateBtn = document.getElementById("generateBtn");
+    const realExamBtn = document.getElementById("realExamBtn");
     const submitBtn = document.getElementById("submitBtn");
     const resetBtn = document.getElementById("resetBtn");
     const showWrongNotesBtn = document.getElementById("showWrongNotesBtn");
@@ -481,6 +500,7 @@
     const wrongNotesSummary = document.getElementById("wrongNotesSummary");
 
     generateBtn.addEventListener("click", generateQuiz);
+    realExamBtn.addEventListener("click", startRealExam);
     submitBtn.addEventListener("click", submitQuiz);
     resetBtn.addEventListener("click", resetQuiz);
     showWrongNotesBtn.addEventListener("click", renderWrongNotes);
@@ -776,12 +796,12 @@
       }
     }
 
-    function buildExamQuestions(allQuestionsBySubject) {
+    function buildRealExamQuestions(allQuestionsBySubject) {
       const selected = [];
       const leftovers = [];
 
-      for (const subject of Object.keys(EXAM_DISTRIBUTION)) {
-        const needed = EXAM_DISTRIBUTION[subject];
+      for (const subject of Object.keys(REAL_EXAM_DISTRIBUTION)) {
+        const needed = REAL_EXAM_DISTRIBUTION[subject];
         const subjectQuestions = shuffleArray(allQuestionsBySubject[subject] || []);
 
         const chosen = subjectQuestions.slice(0, needed);
@@ -791,16 +811,15 @@
         leftovers.push(...remain);
       }
 
-      const targetTotal = 100;
-      const currentTotal = selected.length;
+      const targetTotal = Object.values(REAL_EXAM_DISTRIBUTION).reduce((sum, n) => sum + n, 0);
 
-      if (currentTotal < targetTotal) {
-        const shortage = targetTotal - currentTotal;
+      if (selected.length < targetTotal) {
+        const shortage = targetTotal - selected.length;
         const extra = shuffleArray(leftovers).slice(0, shortage);
         selected.push(...extra);
       }
 
-      return shuffleArray(selected).slice(0, 100);
+      return shuffleArray(selected).slice(0, targetTotal);
     }
 
     async function generateQuiz() {
@@ -816,52 +835,17 @@
       const questionCount = Number(questionCountEl.value);
       const examMinutes = Number(examMinutesEl.value);
 
+      if (!questionCount || questionCount < 1) {
+        showError("문제 수를 1 이상으로 입력하세요.");
+        return;
+      }
+
       if (!examMinutes || examMinutes < 1) {
         showError("시험 시간을 1분 이상으로 입력하세요.");
         return;
       }
 
       try {
-        if (mode === "exam") {
-          const allQuestionsBySubject = await loadAllSubjectQuestions();
-          const examQuestions = buildExamQuestions(allQuestionsBySubject);
-
-          if (examQuestions.length === 0) {
-            showError("시험 모드용 문제가 없습니다.");
-            quizSection.classList.add("hidden");
-            return;
-          }
-
-          currentQuestions = examQuestions;
-          currentMode = mode;
-
-          renderQuiz(currentQuestions);
-
-          const totalPool = Object.values(allQuestionsBySubject).reduce((sum, arr) => sum + arr.length, 0);
-
-          statusSubject.textContent = "과목: 전과목";
-          statusCount.textContent = "문제 수: " + currentQuestions.length + "개";
-          statusPool.textContent = "출제 후보 수: " + totalPool + "개";
-
-          timerBox.textContent = "남은 시간: " + formatTime(examMinutes * 60);
-          startTimer(examMinutes);
-
-          summaryBox.innerHTML =
-            "<strong>시험 모드 문제 생성 완료</strong><br>" +
-            "출제 방식: 전과목 통합 시험<br>" +
-            "총 문제 수: 100개<br>" +
-            "기본 배분: 기초 20 / 실무 20 / 보육실무 20 / 성장실무 20 / 법규 20<br>" +
-            "부족한 과목이 있으면 다른 과목 문제로 자동 보충합니다.";
-
-          quizSection.classList.remove("hidden");
-          return;
-        }
-
-        if (!questionCount || questionCount < 1) {
-          showError("문제 수를 1 이상으로 입력하세요.");
-          return;
-        }
-
         const filtered = await loadQuestionsBySubject(subject);
 
         if (filtered.length === 0) {
@@ -878,17 +862,78 @@
         statusSubject.textContent = "과목: " + subject;
         statusCount.textContent = "문제 수: " + currentQuestions.length + "개";
         statusPool.textContent = "출제 후보 수: " + filtered.length + "개";
-        timerBox.textContent = "남은 시간: 제한 없음";
 
-        summaryBox.innerHTML =
-          "<strong>문제 생성 완료</strong><br>" +
-          "과목: " + subject + "<br>" +
-          "검색된 문제 수: " + filtered.length + "개<br>" +
-          "실제 출제 문제 수: " + currentQuestions.length + "개<br>" +
-          "모드: 일반 모드<br>" +
-          "출제 방식: 선택 과목 파일 내 랜덤 출제";
+        if (mode === "exam") {
+          timerBox.textContent = "남은 시간: " + formatTime(examMinutes * 60);
+          startTimer(examMinutes);
+
+          summaryBox.innerHTML =
+            "<strong>시험 모드 문제 생성 완료</strong><br>" +
+            "과목: " + subject + "<br>" +
+            "검색된 문제 수: " + filtered.length + "개<br>" +
+            "실제 출제 문제 수: " + currentQuestions.length + "개<br>" +
+            "모드: 시험 모드<br>" +
+            "출제 방식: 선택 과목 파일 내 랜덤 출제";
+        } else {
+          timerBox.textContent = "남은 시간: 제한 없음";
+
+          summaryBox.innerHTML =
+            "<strong>문제 생성 완료</strong><br>" +
+            "과목: " + subject + "<br>" +
+            "검색된 문제 수: " + filtered.length + "개<br>" +
+            "실제 출제 문제 수: " + currentQuestions.length + "개<br>" +
+            "모드: 일반 모드<br>" +
+            "출제 방식: 선택 과목 파일 내 랜덤 출제";
+        }
 
         quizSection.classList.remove("hidden");
+        window.scrollTo({ top: quizSection.offsetTop - 20, behavior: "smooth" });
+      } catch (error) {
+        showError(error.message);
+        quizSection.classList.add("hidden");
+      }
+    }
+
+    async function startRealExam() {
+      hideError();
+      stopTimer();
+      resultBox.classList.add("hidden");
+      resultBox.textContent = "";
+      isSubmitted = false;
+      currentQuizSource = "real-exam";
+      currentMode = "exam";
+
+      try {
+        const allQuestionsBySubject = await loadAllSubjectQuestions();
+        const examQuestions = buildRealExamQuestions(allQuestionsBySubject);
+
+        if (examQuestions.length === 0) {
+          showError("시험보기용 문제가 없습니다.");
+          quizSection.classList.add("hidden");
+          return;
+        }
+
+        currentQuestions = examQuestions;
+        renderQuiz(currentQuestions);
+
+        const totalPool = Object.values(allQuestionsBySubject).reduce((sum, arr) => sum + arr.length, 0);
+
+        statusSubject.textContent = "과목: 전과목";
+        statusCount.textContent = "문제 수: " + currentQuestions.length + "개";
+        statusPool.textContent = "출제 후보 수: " + totalPool + "개";
+
+        timerBox.textContent = "남은 시간: " + formatTime(REAL_EXAM_TOTAL_TIME * 60);
+        startTimer(REAL_EXAM_TOTAL_TIME);
+
+        summaryBox.innerHTML =
+          "<strong>실전 시험 시작</strong><br>" +
+          "시험시간: 100분 고정<br>" +
+          "출제 과목: 기술창업기초 / 기술창업실무 / 기술창업보육실무 / 기술창업성장실무 / 창업관련법규<br>" +
+          "과목별 문항 수: 각 25문제<br>" +
+          "총 문제 수: 125문제";
+
+        quizSection.classList.remove("hidden");
+        window.scrollTo({ top: quizSection.offsetTop - 20, behavior: "smooth" });
       } catch (error) {
         showError(error.message);
         quizSection.classList.add("hidden");
@@ -906,7 +951,6 @@
       const subject = subjectEl.value;
       const mode = modeEl.value;
       const questionCount = Number(questionCountEl.value);
-      const examMinutes = Number(examMinutesEl.value);
 
       if (mode === "exam") {
         showError("오답만 다시 풀기는 일반 모드에서 사용하세요.");
@@ -949,6 +993,7 @@
         "출제 방식: 오답노트 기반 랜덤 출제";
 
       quizSection.classList.remove("hidden");
+      window.scrollTo({ top: quizSection.offsetTop - 20, behavior: "smooth" });
     }
 
     function renderQuiz(questions) {
