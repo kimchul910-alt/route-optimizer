@@ -298,16 +298,6 @@
         </div>
 
         <div class="form-group">
-          <label for="startPage">시작 페이지</label>
-          <input type="number" id="startPage" min="1" value="1" />
-        </div>
-
-        <div class="form-group">
-          <label for="endPage">끝 페이지</label>
-          <input type="number" id="endPage" min="1" value="50" />
-        </div>
-
-        <div class="form-group">
           <label for="questionCount">문제 수</label>
           <input type="number" id="questionCount" min="1" max="100" value="10" />
         </div>
@@ -335,8 +325,8 @@
     <div id="quizSection" class="hidden">
       <div class="status-bar">
         <div class="status-item" id="statusSubject">과목: -</div>
-        <div class="status-item" id="statusRange">범위: -</div>
         <div class="status-item" id="statusCount">문제 수: -</div>
+        <div class="status-item" id="statusPool">출제 후보 수: -</div>
         <div class="status-item" id="timerBox">남은 시간: -</div>
       </div>
 
@@ -359,8 +349,6 @@
 
     const subjectEl = document.getElementById("subject");
     const modeEl = document.getElementById("mode");
-    const startPageEl = document.getElementById("startPage");
-    const endPageEl = document.getElementById("endPage");
     const questionCountEl = document.getElementById("questionCount");
     const examMinutesEl = document.getElementById("examMinutes");
 
@@ -371,8 +359,8 @@
     const resultBox = document.getElementById("resultBox");
 
     const statusSubject = document.getElementById("statusSubject");
-    const statusRange = document.getElementById("statusRange");
     const statusCount = document.getElementById("statusCount");
+    const statusPool = document.getElementById("statusPool");
     const timerBox = document.getElementById("timerBox");
 
     generateBtn.addEventListener("click", generateQuiz);
@@ -505,20 +493,8 @@
 
       const subject = subjectEl.value;
       const mode = modeEl.value;
-      const startPage = Number(startPageEl.value);
-      const endPage = Number(endPageEl.value);
       const questionCount = Number(questionCountEl.value);
       const examMinutes = Number(examMinutesEl.value);
-
-      if (!startPage || !endPage || startPage < 1 || endPage < 1) {
-        showError("시작 페이지와 끝 페이지를 올바르게 입력하세요.");
-        return;
-      }
-
-      if (startPage > endPage) {
-        showError("시작 페이지는 끝 페이지보다 클 수 없습니다.");
-        return;
-      }
 
       if (!questionCount || questionCount < 1) {
         showError("문제 수를 1 이상으로 입력하세요.");
@@ -534,14 +510,10 @@
         const allData = await loadQuestionsBySubject(subject);
         validateQuestions(allData);
 
-        const filtered = allData.filter(item => {
-          return item.subject === subject &&
-            Number(item.page) >= startPage &&
-            Number(item.page) <= endPage;
-        });
+        const filtered = allData.filter(item => item.subject === subject);
 
         if (filtered.length === 0) {
-          showError("선택한 과목과 페이지 범위에 해당하는 문제가 없습니다.");
+          showError("선택한 과목에 해당하는 문제가 없습니다.");
           quizSection.classList.add("hidden");
           return;
         }
@@ -552,8 +524,8 @@
         renderQuiz(currentQuestions);
 
         statusSubject.textContent = "과목: " + subject;
-        statusRange.textContent = "범위: " + startPage + " ~ " + endPage + " 페이지";
         statusCount.textContent = "문제 수: " + currentQuestions.length + "개";
+        statusPool.textContent = "출제 후보 수: " + filtered.length + "개";
 
         if (mode === "exam") {
           timerBox.textContent = "남은 시간: " + formatTime(examMinutes * 60);
@@ -565,10 +537,10 @@
         summaryBox.innerHTML =
           "<strong>문제 생성 완료</strong><br>" +
           "과목: " + subject + "<br>" +
-          "출제 범위: " + startPage + " ~ " + endPage + " 페이지<br>" +
           "검색된 문제 수: " + filtered.length + "개<br>" +
           "실제 출제 문제 수: " + currentQuestions.length + "개<br>" +
-          "모드: " + (mode === "exam" ? "시험 모드" : "일반 모드");
+          "모드: " + (mode === "exam" ? "시험 모드" : "일반 모드") + "<br>" +
+          "출제 방식: 과목 내 랜덤 출제";
 
         quizSection.classList.remove("hidden");
       } catch (error) {
@@ -704,8 +676,8 @@
       resultBox.textContent = "";
 
       statusSubject.textContent = "과목: -";
-      statusRange.textContent = "범위: -";
       statusCount.textContent = "문제 수: -";
+      statusPool.textContent = "출제 후보 수: -";
       timerBox.textContent = "남은 시간: -";
     }
   </script>
