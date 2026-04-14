@@ -685,12 +685,12 @@
 
     async function loadQuestionsBySubject(subject) {
       const subjectFileMap = {
-        "기술창업기초": "./questions-basic.json",
-        "기술창업실무": "./questions-basic.json",
-        "기술창업보육실무": "./questions-basic.json",
-        "기술창업성장실무": "./questions-basic.json",
-        "창업관련법규": "./questions-basic.json"
-      };
+          "기술창업기초": "./questions-basic.json",
+          "기술창업실무": "./questions-practice.json",
+          "기술창업보육실무": "./questions-incubation.json",
+          "기술창업성장실무": "./questions-growth.json",
+          "창업관련법규": "./questions-law.json"
+};
 
       const filePath = subjectFileMap[subject];
 
