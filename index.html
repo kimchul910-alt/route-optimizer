@@ -345,7 +345,7 @@
 <body>
   <div class="wrap">
     <h1>창업보육전문매니저</h1>
-    <div class="sub-text">브라우저별 오답노트 저장 기능이 포함된 문제은행입니다.</div>
+    <div class="sub-text">과목별 JSON 파일 연동 + 브라우저별 오답노트 저장 기능이 포함된 문제은행입니다.</div>
 
     <div class="card">
       <div class="form-grid">
@@ -375,7 +375,7 @@
 
         <div class="form-group">
           <label for="examMinutes">시험 시간(분)</label>
-          <input type="number" id="examMinutes" min="1" max="180" value="20" />
+          <input type="number" id="examMinutes" min="1" max="180" value="100" />
         </div>
       </div>
 
@@ -388,8 +388,8 @@
       </div>
 
       <div class="footer-note">
-        현재 기본 설정은 <strong>questions-basic.json</strong>을 사용합니다.
-        오답노트는 현재 브라우저에만 저장됩니다.
+        일반 모드는 선택한 과목 파일에서 랜덤 출제합니다.<br>
+        시험 모드는 각 과목 파일에서 문제를 추출해 총 100문제를 생성합니다.
       </div>
     </div>
 
@@ -434,7 +434,23 @@
     let isSubmitted = false;
     let currentQuizSource = "normal";
 
-    const WRONG_NOTE_STORAGE_KEY = "cbm_wrong_notes_v1";
+    const WRONG_NOTE_STORAGE_KEY = "cbm_wrong_notes_v2";
+
+    const SUBJECT_FILE_MAP = {
+      "기술창업기초": "./questions-basic.json",
+      "기술창업실무": "./questions-practice.json",
+      "기술창업보육실무": "./questions-incubation.json",
+      "기술창업성장실무": "./questions-growth.json",
+      "창업관련법규": "./questions-law.json"
+    };
+
+    const EXAM_DISTRIBUTION = {
+      "기술창업기초": 20,
+      "기술창업실무": 20,
+      "기술창업보육실무": 20,
+      "기술창업성장실무": 20,
+      "창업관련법규": 20
+    };
 
     const generateBtn = document.getElementById("generateBtn");
     const submitBtn = document.getElementById("submitBtn");
@@ -683,71 +699,108 @@
       }).join("");
     }
 
-    async function loadQuestionsBySubject(subject) {
-      const subjectFileMap = {
-          "기술창업기초": "./questions-basic.json",
-          "기술창업실무": "./questions-practice.json",
-          "기술창업보육실무": "./questions-incubation.json",
-          "기술창업성장실무": "./questions-growth.json",
-          "창업관련법규": "./questions-law.json"
-};
-
-      const filePath = subjectFileMap[subject];
-
-      if (!filePath) {
-        throw new Error("선택한 과목에 연결된 JSON 파일이 없습니다.");
-      }
-
+    async function loadJsonFile(filePath) {
       const response = await fetch(filePath + "?ts=" + Date.now());
 
       if (!response.ok) {
-        throw new Error("문제 파일을 불러오지 못했습니다. (HTTP " + response.status + ")");
+        throw new Error(`문제 파일을 불러오지 못했습니다. (${filePath}, HTTP ${response.status})`);
       }
 
       const rawText = await response.text();
 
       if (!rawText.trim()) {
-        throw new Error("문제 파일이 비어 있습니다.");
+        throw new Error(`문제 파일이 비어 있습니다. (${filePath})`);
       }
 
       let data;
       try {
         data = JSON.parse(rawText);
       } catch (error) {
-        throw new Error("문제 JSON 형식 오류: " + error.message);
+        throw new Error(`문제 JSON 형식 오류 (${filePath}): ${error.message}`);
       }
 
       if (!Array.isArray(data)) {
-        throw new Error("문제 파일의 최상위 구조는 배열([])이어야 합니다.");
+        throw new Error(`문제 파일의 최상위 구조는 배열([])이어야 합니다. (${filePath})`);
       }
 
+      validateQuestions(data, filePath);
       return data;
     }
 
-    function validateQuestions(data) {
+    async function loadQuestionsBySubject(subject) {
+      const filePath = SUBJECT_FILE_MAP[subject];
+
+      if (!filePath) {
+        throw new Error("선택한 과목에 연결된 JSON 파일이 없습니다.");
+      }
+
+      const data = await loadJsonFile(filePath);
+      return data.filter(item => item.subject === subject);
+    }
+
+    async function loadAllSubjectQuestions() {
+      const result = {};
+
+      for (const subject of Object.keys(SUBJECT_FILE_MAP)) {
+        const filePath = SUBJECT_FILE_MAP[subject];
+        const data = await loadJsonFile(filePath);
+        result[subject] = data.filter(item => item.subject === subject);
+      }
+
+      return result;
+    }
+
+    function validateQuestions(data, filePath = "") {
       const requiredFields = ["id", "subject", "page", "question", "choices", "answer", "explanation"];
 
       for (let i = 0; i < data.length; i++) {
         const item = data[i];
 
         if (typeof item !== "object" || item === null) {
-          throw new Error((i + 1) + "번째 문제 데이터가 객체가 아닙니다.");
+          throw new Error(`${i + 1}번째 문제 데이터가 객체가 아닙니다. ${filePath}`);
         }
 
         for (const field of requiredFields) {
           if (!(field in item)) {
-            throw new Error((i + 1) + "번째 문제에 '" + field + "' 항목이 없습니다.");
+            throw new Error(`${i + 1}번째 문제에 '${field}' 항목이 없습니다. ${filePath}`);
           }
         }
 
         if (!Array.isArray(item.choices) || item.choices.length !== 4) {
-          throw new Error((i + 1) + "번째 문제의 choices는 4개여야 합니다.");
+          throw new Error(`${i + 1}번째 문제의 choices는 4개여야 합니다. ${filePath}`);
         }
 
         if (![1, 2, 3, 4].includes(Number(item.answer))) {
-          throw new Error((i + 1) + "번째 문제의 answer는 1~4 숫자여야 합니다.");
+          throw new Error(`${i + 1}번째 문제의 answer는 1~4 숫자여야 합니다. ${filePath}`);
         }
       }
+    }
+
+    function buildExamQuestions(allQuestionsBySubject) {
+      const selected = [];
+      const leftovers = [];
+
+      for (const subject of Object.keys(EXAM_DISTRIBUTION)) {
+        const needed = EXAM_DISTRIBUTION[subject];
+        const subjectQuestions = shuffleArray(allQuestionsBySubject[subject] || []);
+
+        const chosen = subjectQuestions.slice(0, needed);
+        const remain = subjectQuestions.slice(needed);
+
+        selected.push(...chosen);
+        leftovers.push(...remain);
+      }
+
+      const targetTotal = 100;
+      const currentTotal = selected.length;
+
+      if (currentTotal < targetTotal) {
+        const shortage = targetTotal - currentTotal;
+        const extra = shuffleArray(leftovers).slice(0, shortage);
+        selected.push(...extra);
+      }
+
+      return shuffleArray(selected).slice(0, 100);
     }
 
     async function generateQuiz() {
@@ -763,21 +816,53 @@
       const questionCount = Number(questionCountEl.value);
       const examMinutes = Number(examMinutesEl.value);
 
-      if (!questionCount || questionCount < 1) {
-        showError("문제 수를 1 이상으로 입력하세요.");
-        return;
-      }
-
       if (!examMinutes || examMinutes < 1) {
         showError("시험 시간을 1분 이상으로 입력하세요.");
         return;
       }
 
       try {
-        const allData = await loadQuestionsBySubject(subject);
-        validateQuestions(allData);
+        if (mode === "exam") {
+          const allQuestionsBySubject = await loadAllSubjectQuestions();
+          const examQuestions = buildExamQuestions(allQuestionsBySubject);
 
-        const filtered = allData.filter(item => item.subject === subject);
+          if (examQuestions.length === 0) {
+            showError("시험 모드용 문제가 없습니다.");
+            quizSection.classList.add("hidden");
+            return;
+          }
+
+          currentQuestions = examQuestions;
+          currentMode = mode;
+
+          renderQuiz(currentQuestions);
+
+          const totalPool = Object.values(allQuestionsBySubject).reduce((sum, arr) => sum + arr.length, 0);
+
+          statusSubject.textContent = "과목: 전과목";
+          statusCount.textContent = "문제 수: " + currentQuestions.length + "개";
+          statusPool.textContent = "출제 후보 수: " + totalPool + "개";
+
+          timerBox.textContent = "남은 시간: " + formatTime(examMinutes * 60);
+          startTimer(examMinutes);
+
+          summaryBox.innerHTML =
+            "<strong>시험 모드 문제 생성 완료</strong><br>" +
+            "출제 방식: 전과목 통합 시험<br>" +
+            "총 문제 수: 100개<br>" +
+            "기본 배분: 기초 20 / 실무 20 / 보육실무 20 / 성장실무 20 / 법규 20<br>" +
+            "부족한 과목이 있으면 다른 과목 문제로 자동 보충합니다.";
+
+          quizSection.classList.remove("hidden");
+          return;
+        }
+
+        if (!questionCount || questionCount < 1) {
+          showError("문제 수를 1 이상으로 입력하세요.");
+          return;
+        }
+
+        const filtered = await loadQuestionsBySubject(subject);
 
         if (filtered.length === 0) {
           showError("선택한 과목에 해당하는 문제가 없습니다.");
@@ -793,21 +878,15 @@
         statusSubject.textContent = "과목: " + subject;
         statusCount.textContent = "문제 수: " + currentQuestions.length + "개";
         statusPool.textContent = "출제 후보 수: " + filtered.length + "개";
-
-        if (mode === "exam") {
-          timerBox.textContent = "남은 시간: " + formatTime(examMinutes * 60);
-          startTimer(examMinutes);
-        } else {
-          timerBox.textContent = "남은 시간: 제한 없음";
-        }
+        timerBox.textContent = "남은 시간: 제한 없음";
 
         summaryBox.innerHTML =
           "<strong>문제 생성 완료</strong><br>" +
           "과목: " + subject + "<br>" +
           "검색된 문제 수: " + filtered.length + "개<br>" +
           "실제 출제 문제 수: " + currentQuestions.length + "개<br>" +
-          "모드: " + (mode === "exam" ? "시험 모드" : "일반 모드") + "<br>" +
-          "출제 방식: 과목 내 랜덤 출제";
+          "모드: 일반 모드<br>" +
+          "출제 방식: 선택 과목 파일 내 랜덤 출제";
 
         quizSection.classList.remove("hidden");
       } catch (error) {
@@ -828,6 +907,11 @@
       const mode = modeEl.value;
       const questionCount = Number(questionCountEl.value);
       const examMinutes = Number(examMinutesEl.value);
+
+      if (mode === "exam") {
+        showError("오답만 다시 풀기는 일반 모드에서 사용하세요.");
+        return;
+      }
 
       const notes = getWrongNotes().filter(item => item.subject === subject);
 
@@ -854,20 +938,14 @@
       statusSubject.textContent = "과목: " + subject;
       statusCount.textContent = "문제 수: " + currentQuestions.length + "개";
       statusPool.textContent = "출제 후보 수: " + notes.length + "개";
-
-      if (mode === "exam") {
-        timerBox.textContent = "남은 시간: " + formatTime(examMinutes * 60);
-        startTimer(examMinutes);
-      } else {
-        timerBox.textContent = "남은 시간: 제한 없음";
-      }
+      timerBox.textContent = "남은 시간: 제한 없음";
 
       summaryBox.innerHTML =
         "<strong>오답노트 재출제 완료</strong><br>" +
         "과목: " + subject + "<br>" +
         "저장된 오답 문제 수: " + notes.length + "개<br>" +
         "실제 출제 문제 수: " + currentQuestions.length + "개<br>" +
-        "모드: " + (mode === "exam" ? "시험 모드" : "일반 모드") + "<br>" +
+        "모드: 일반 모드<br>" +
         "출제 방식: 오답노트 기반 랜덤 출제";
 
       quizSection.classList.remove("hidden");
@@ -893,7 +971,7 @@
         card.className = "question-card";
         card.innerHTML = `
           <div class="question-meta">
-            문제 ${index + 1} | 페이지: ${q.page}${typeHtml}
+            문제 ${index + 1} | 과목: ${escapeHtml(q.subject)} | 페이지: ${q.page}${typeHtml}
           </div>
           <div class="question-title">${escapeHtml(q.question)}</div>
           <div class="choice-list">${choicesHtml}</div>
